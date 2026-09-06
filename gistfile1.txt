@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geology Card Clash - Lampung Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .card-perspective { perspective: 1000px; }
+        .card-inner { transition: transform 0.6s; transform-style: preserve-3d; }
+        .card-selected { transform: translateY(-10px); border-color: #3b82f6 !important; }
+    </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen p-4 font-sans">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <header class="text-center my-6">
+            <h1 class="text-3xl font-bold text-amber-400">GEOLOGY CARD CLASH</h1>
+            <p class="text-slate-400 text-sm mt-1">Edisi Karakterisasi Batuan & Geoteknik Lampung</p>
+        </header>
+
+        <!-- Scoreboard -->
+        <div class="flex justify-between items-center bg-slate-800 p-4 rounded-xl mb-6 border border-slate-700">
+            <div class="text-center">
+                <div class="text-xs text-slate-400">Pemain</div>
+                <div id="player-score" class="text-2xl font-bold text-blue-400">0</div>
+            </div>
+            <div class="text-xs font-semibold px-3 py-1 bg-amber-500/20 text-amber-300 rounded-full">VS</div>
+            <div class="text-center">
+                <div class="text-xs text-slate-400">Komputer</div>
+                <div id="cpu-score" class="text-2xl font-bold text-red-400">0</div>
+            </div>
+        </div>
+
+        <!-- Game Arena -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <!-- Kartu Pemain -->
+            <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
+                <h2 class="text-sm font-semibold text-blue-400 mb-3">KARTU PILIHANMU</h2>
+                <div id="player-card-slot" class="min-h-[220px] flex items-center justify-center border-2 border-dashed border-slate-600 rounded-xl p-4">
+                    <span class="text-slate-500 text-sm">Pilih kartu di bawah</span>
+                </div>
+            </div>
+
+            <!-- Kartu CPU -->
+            <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
+                <h2 class="text-sm font-semibold text-red-400 mb-3">KARTU LAWAN (CPU)</h2>
+                <div id="cpu-card-slot" class="min-h-[220px] flex items-center justify-center border-2 border-dashed border-slate-600 rounded-xl p-4">
+                    <span class="text-slate-500 text-sm">Menunggu pilihanmu...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Battle Controls -->
+        <div id="controls" class="bg-slate-800 p-4 rounded-xl border border-slate-700 mb-6 text-center">
+            <p class="text-xs text-slate-300 mb-3">Pilih Atribut Pengujian Geoteknik untuk Diadu:</p>
+            <div class="flex flex-wrap justify-center gap-3 mb-4">
+                <button onclick="selectAttr('ucs')" class="attr-btn px-4 py-2 bg-slate-700 hover:bg-amber-600 rounded-lg text-xs font-medium transition" data-attr="ucs">Kekuatan Tekan (UCS)</button>
+                <button onclick="selectAttr('density')" class="attr-btn px-4 py-2 bg-slate-700 hover:bg-amber-600 rounded-lg text-xs font-medium transition" data-attr="density">Kepadatan (Density)</button>
+                <button onclick="selectAttr('economic')" class="attr-btn px-4 py-2 bg-slate-700 hover:bg-amber-600 rounded-lg text-xs font-medium transition" data-attr="economic">Nilai Ekonomi</button>
+            </div>
+            <button onclick="playRound()" id="battle-btn" disabled class="w-full md:w-auto px-8 py-3 bg-amber-500 disabled:bg-slate-600 text-slate-950 font-bold rounded-xl transition">ADU KARTU!</button>
+        </div>
+
+        <!-- Result Banner -->
+        <div id="result-box" class="hidden text-center p-4 rounded-xl mb-6 font-bold text-lg"></div>
+
+        <!-- Deck Player -->
+        <div>
+            <h3 class="text-xs font-semibold text-slate-400 mb-3">DECK KARTU BATUANMU:</h3>
+            <div id="player-deck" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3"></div>
+        </div>
+    </div>
+
+    <script>
+        const cardsData = [
+            { id: 1, name: "Batugamping Pesawaran", location: "Pesawaran", ucs: 65, density: 2.55, economic: 85, type: "Sedimen Karbonat" },
+            { id: 2, name: "Ignimbit Tanggamus", location: "Tanggamus", ucs: 28, density: 1.95, economic: 60, type: "Vulkanik Pyroklastik" },
+            { id: 3, name: "Basalt Sukadana", location: "Lampung Timur", ucs: 140, density: 2.85, economic: 75, type: "Beku Mafik" },
+            { id: 4, name: "Lempung Ekspansif", location: "Lampung Selatan", ucs: 8, density: 1.65, economic: 40, type: "Sedimen Pelapukan" },
+            { id: 5, name: "Granit Sekampung", location: "Lampung Timur", ucs: 160, density: 2.70, economic: 90, type: "Beku Plutonik" }
+        ];
+
+        let selectedPlayerCard = null;
+        let selectedAttr = null;
+        let playerScore = 0;
+        let cpuScore = 0;
+
+        function renderDeck() {
+            const container = document.getElementById('player-deck');
+            container.innerHTML = '';
+            cardsData.forEach(card => {
+                const cardEl = document.createElement('div');
+                cardEl.className = `bg-slate-800 p-3 rounded-xl border border-slate-700 cursor-pointer hover:border-blue-500 transition text-left`;
+                cardEl.onclick = () => pickCard(card, cardEl);
+                cardEl.innerHTML = `
+                    <div class="text-[10px] text-amber-400 font-semibold">${card.type}</div>
+                    <div class="text-xs font-bold my-1 text-white">${card.name}</div>
+                    <div class="text-[10px] text-slate-400">${card.location}</div>
+                `;
+                container.appendChild(cardEl);
+            });
+        }
+
+        function pickCard(card, element) {
+            document.querySelectorAll('#player-deck > div').forEach(el => el.classList.remove('border-blue-500', 'bg-slate-700'));
+            element.classList.add('border-blue-500', 'bg-slate-700');
+            selectedPlayerCard = card;
+
+            document.getElementById('player-card-slot').innerHTML = renderCardUI(card);
+            checkReady();
+        }
+
+        function selectAttr(attr) {
+            selectedAttr = attr;
+            document.querySelectorAll('.attr-btn').forEach(btn => {
+                btn.classList.remove('bg-amber-600');
+                if(btn.dataset.attr === attr) btn.classList.add('bg-amber-600');
+            });
+            checkReady();
+        }
+
+        function checkReady() {
+            document.getElementById('battle-btn').disabled = !(selectedPlayerCard && selectedAttr);
+        }
+
+        function renderCardUI(card) {
+            return `
+                <div class="w-full text-left bg-slate-900 p-3 rounded-lg border border-slate-700">
+                    <div class="text-xs text-amber-400 font-bold">${card.name}</div>
+                    <div class="text-[10px] text-slate-400 mb-2">${card.location}</div>
+                    <div class="text-[11px] space-y-1">
+                        <div class="flex justify-between"><span>UCS:</span> <b class="text-blue-300">${card.ucs} MPa</b></div>
+                        <div class="flex justify-between"><span>Density:</span> <b class="text-blue-300">${card.density} g/cm³</b></div>
+                        <div class="flex justify-between"><span>Nilai Ekonomi:</span> <b class="text-blue-300">${card.economic}/100</b></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function playRound() {
+            const randomCpuCard = cardsData[Math.floor(Math.random() * cardsData.length)];
+            document.getElementById('cpu-card-slot').innerHTML = renderCardUI(randomCpuCard);
+
+            const pValue = selectedPlayerCard[selectedAttr];
+            const cValue = randomCpuCard[selectedAttr];
+
+            const resultBox = document.getElementById('result-box');
+            resultBox.classList.remove('hidden', 'bg-green-600', 'bg-red-600', 'bg-slate-600');
+
+            if (pValue > cValue) {
+                playerScore++;
+                resultBox.classList.add('bg-green-600');
+                resultBox.innerText = `Kamu Menang! (${pValue} vs ${cValue})`;
+            } else if (pValue < cValue) {
+                cpuScore++;
+                resultBox.classList.add('bg-red-600');
+                resultBox.innerText = `Komputer Menang! (${pValue} vs ${cValue})`;
+            } else {
+                resultBox.classList.add('bg-slate-600');
+                resultBox.innerText = `Seri! Nilai Sama (${pValue})`;
+            }
+
+            document.getElementById('player-score').innerText = playerScore;
+            document.getElementById('cpu-score').innerText = cpuScore;
+        }
+
+        renderDeck();
+    </script>
+</body>
+</html>
